@@ -148,14 +148,14 @@ entry fun mint_internal(
 ) {
     let mut minted_amount = 0;
 
-    while (minted_amount < amount) {
-        if (collection.supply != 0) {
-            assert!(collection.minted_supply < collection.supply, 0x2);
-            assert!(collection.minted_supply < collection.metadata_count, 0x3); // Ensure minted supply is less than metadata count>
-        }else if (!collection.fixed_metadata) {
-            assert!(collection.minted_supply < collection.metadata_count_real, 0x3); // Ensure minted supply is less than real metadata count
+    if (collection.supply != 0) {
+        assert!(collection.minted_supply + amount <= collection.supply, 0x2);
+        assert!(collection.minted_supply + amount <= collection.metadata_count, 0x3);
+    } else if (!collection.fixed_metadata) {
+        assert!(collection.minted_supply + amount <= collection.metadata_count_real, 0x3);
+    };
 
-        };
+    while (minted_amount < amount) {
         let mut metadata: PendingMetadata;
 
         if (collection.fixed_metadata) {
@@ -217,11 +217,11 @@ public entry fun mint_unpaid(
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
-    assert!(amount > 0, 0x1); // Ensure amount is greater than 0
+    assert!(amount > 0, 0x4); // Ensure amount is greater than 0
 
     // Validate joystiq core rules
     if (collection.ejected) {
-        abort 0x4 // Collection is ejected, cannot mint
+        abort 0x5 // Collection is ejected, cannot mint
     };
 
     let mut token_ids: vector<u64> = vector::empty<u64>();
@@ -251,6 +251,7 @@ public entry fun mint_unpaid(
 public entry fun mint<T>(
     collection: &mut Collection,
     collection_jq_config: &mut joystiq::nft_core::Collection,
+    jq_core_root: &mut joystiq::nft_core::Root,
     transfer_policy: &TransferPolicy<NFT>,
     group_index: u64,
     amount: u64,
@@ -259,11 +260,11 @@ public entry fun mint<T>(
     coin: Coin<T>,
     ctx: &mut TxContext,
 ) {
-    assert!(amount > 0, 0x1); // Ensure amount is greater than 0
+    assert!(amount > 0, 0x4); // Ensure amount is greater than 0
 
     // Validate joystiq core rules
     if (collection.ejected) {
-        abort 0x4 // Collection is ejected, cannot mint
+        abort 0x5 // Collection is ejected, cannot mint
     };
 
     let mut token_ids: vector<u64> = vector::empty<u64>();
@@ -274,6 +275,7 @@ public entry fun mint<T>(
     };
 
     joystiq::nft_core::validate(
+        jq_core_root,
         collection_jq_config,
         token_ids,
         group_index,
@@ -294,6 +296,7 @@ public entry fun mint<T>(
 public entry fun mint_paid2<T1, T2>(
     collection: &mut Collection,
     collection_jq_config: &mut joystiq::nft_core::Collection,
+    jq_core_root: &mut joystiq::nft_core::Root,
     transfer_policy: &TransferPolicy<NFT>,
     group_index: u64,
     amount: u64,
@@ -303,11 +306,11 @@ public entry fun mint_paid2<T1, T2>(
     coin2: Coin<T2>,
     ctx: &mut TxContext,
 ) {
-    assert!(amount > 0, 0x1); // Ensure amount is greater than 0
+    assert!(amount > 0, 0x4); // Ensure amount is greater than 0
 
     // Validate joystiq core rules
     if (collection.ejected) {
-        abort 0x4 // Collection is ejected, cannot mint
+        abort 0x5 // Collection is ejected, cannot mint
     };
 
     let mut token_ids: vector<u64> = vector::empty<u64>();
@@ -318,6 +321,7 @@ public entry fun mint_paid2<T1, T2>(
     };
 
     joystiq::nft_core::validate_2(
+        jq_core_root,
         collection_jq_config,
         token_ids,
         group_index,
@@ -392,35 +396,8 @@ public entry fun create(
         collection.metadata_count_real = collection.metadata_count_real + 1; // Increase real metadata count
     }
 
-    //transfer::share_object(metadata);
 }
 
-public entry fun update_nft_metadata(
-    collection: &mut Collection,
-    kiosk_obj: &mut sui::kiosk::Kiosk,
-    kiosk_cap: &sui::kiosk::KioskOwnerCap,
-    nft_id: ID,
-    name: String,
-    image_url: String,
-    description: String,
-    attributes_keys: vector<String>,
-    attributes_values: vector<String>,
-    _: &mut sui::package::Publisher,
-    _ctx: &mut TxContext,
-) {
-    assert!(collection.is_immutable == false, 0x2); // collection must be mutable to change
-
-    let nft = sui::kiosk::borrow_mut<NFT>(kiosk_obj, kiosk_cap, nft_id);
-
-    nft.name = name;
-    nft.image_url = image_url;
-    nft.description = description;
-    nft.attributes =
-        vec_map::from_keys_values(
-            attributes_keys,
-            attributes_values,
-        );
-}
 
 public entry fun eject_collection(
     collection: &mut Collection,
@@ -438,14 +415,6 @@ public entry fun transfer_collection_ownership(
     transfer::public_transfer(publisher, new_owner); // Transfer the publisher object to the new owner
 }
 
-public entry fun remove_royalty(
-    policy: &mut TransferPolicy<NFT>,
-    policy_cap: &mut TransferPolicyCap<NFT>,
-    _: &mut sui::package::Publisher,
-    _ctx: &mut TxContext,
-) {
-    royalty_rule::add<NFT>(policy, policy_cap, 0, 0); // Set royalty to 0 bps
-}
 
 public entry fun update_collection(
     collection: &mut Collection,
@@ -499,8 +468,6 @@ public entry fun update_collection(
         collection_media_url,
     );
     display::update_version(display);
-
-    //royalty_rule::add<NFT>(policy, policy_cap, royalty_bps, 0);
 
     //fixed metadata
     collection.fixed_metadata = fixed_metadata;
