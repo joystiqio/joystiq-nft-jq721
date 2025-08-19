@@ -140,7 +140,7 @@ fun fixed_metadata_to_pending(fixed_metadata: &FixedMetadata, token_id: u64): Pe
     }
 }
 
-entry fun mint_internal(
+fun mint_internal(
     collection: &mut Collection,
     transfer_policy: &TransferPolicy<NFT>,
     amount: u64,
