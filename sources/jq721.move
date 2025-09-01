@@ -396,36 +396,7 @@ public entry fun create(
         collection.metadata_count = collection.metadata_count + 1;
         collection.metadata_count_real = collection.metadata_count_real + 1; // Increase real metadata count
     }
-
-    //transfer::share_object(metadata);
 }
-
-/*public entry fun update_nft_metadata(
-    collection: &mut Collection,
-    kiosk_obj: &mut sui::kiosk::Kiosk,
-    kiosk_cap: &sui::kiosk::KioskOwnerCap,
-    nft_id: ID,
-    name: String,
-    image_url: String,
-    description: String,
-    attributes_keys: vector<String>,
-    attributes_values: vector<String>,
-    _: &mut sui::package::Publisher,
-    _ctx: &mut TxContext,
-) {
-    assert!(collection.is_immutable == false, 0x2); // collection must be mutable to change
-
-    let nft = sui::kiosk::borrow_mut<NFT>(kiosk_obj, kiosk_cap, nft_id);
-
-    nft.name = name;
-    nft.image_url = image_url;
-    nft.description = description;
-    nft.attributes =
-        vec_map::from_keys_values(
-            attributes_keys,
-            attributes_values,
-        );
-}*/
 
 public entry fun eject_collection(
     collection: &mut Collection,
@@ -447,15 +418,6 @@ public entry fun transfer_collection_ownership(
     transfer::public_transfer(policy_cap, new_owner); // Transfer the policy cap to the new owner
     transfer::public_transfer(publisher, new_owner); // Transfer the publisher object to the new owner
 }
-
-/*public entry fun remove_royalty(
-    policy: &mut TransferPolicy<NFT>,
-    policy_cap: &mut TransferPolicyCap<NFT>,
-    _: &mut sui::package::Publisher,
-    _ctx: &mut TxContext,
-) {
-    royalty_rule::add<NFT>(policy, policy_cap, 0, 0); // Set royalty to 0 bps
-}*/
 
 public entry fun update_collection(
     collection: &mut Collection,
