@@ -24,7 +24,7 @@ public struct Collection has key, store {
     next_token_id: u64, //next token id to be minted
     starting_token_id: u64, //starting token id for the collection
     fixed_metadata: bool, //if metadata is fixed
-    package: String,
+    package: std::ascii::String,
 }
 
 public struct NFT has key, store {
@@ -348,10 +348,11 @@ public entry fun create(
     attributes_keys: vector<String>,
     attributes_values: vector<String>,
     collection: &mut Collection,
-    _: &mut sui::package::Publisher,
+    publisher: &mut sui::package::Publisher,
     _ctx: &mut TxContext,
 ) {
     assert!(collection.initialized, 0x2); // Ensure collection is initialized
+    assert!(collection.package == *publisher.package(), 0x3); // only original publisher can initialize collection
 
     let metadata = PendingMetadata {
         token_id,
@@ -396,25 +397,65 @@ public entry fun create(
         collection.metadata_count_real = collection.metadata_count_real + 1; // Increase real metadata count
     }
 
+    //transfer::share_object(metadata);
 }
 
+/*public entry fun update_nft_metadata(
+    collection: &mut Collection,
+    kiosk_obj: &mut sui::kiosk::Kiosk,
+    kiosk_cap: &sui::kiosk::KioskOwnerCap,
+    nft_id: ID,
+    name: String,
+    image_url: String,
+    description: String,
+    attributes_keys: vector<String>,
+    attributes_values: vector<String>,
+    _: &mut sui::package::Publisher,
+    _ctx: &mut TxContext,
+) {
+    assert!(collection.is_immutable == false, 0x2); // collection must be mutable to change
+
+    let nft = sui::kiosk::borrow_mut<NFT>(kiosk_obj, kiosk_cap, nft_id);
+
+    nft.name = name;
+    nft.image_url = image_url;
+    nft.description = description;
+    nft.attributes =
+        vec_map::from_keys_values(
+            attributes_keys,
+            attributes_values,
+        );
+}*/
 
 public entry fun eject_collection(
     collection: &mut Collection,
-    _: &mut sui::package::Publisher,
+    publisher: &mut sui::package::Publisher,
     _ctx: &mut TxContext,
-) { collection.ejected = true; }
+) {
+    assert!(collection.package == *publisher.package(), 0x3); // only original publisher can initialize collection
+    collection.ejected = true;
+}
 
 public entry fun transfer_collection_ownership(
+    collection: &mut Collection,
     publisher: sui::package::Publisher,
     policy_cap: TransferPolicyCap<NFT>,
     new_owner: address,
     _ctx: &mut TxContext,
 ) {
+    assert!(collection.package == *publisher.package(), 0x3); // only original publisher can initialize collection
     transfer::public_transfer(policy_cap, new_owner); // Transfer the policy cap to the new owner
     transfer::public_transfer(publisher, new_owner); // Transfer the publisher object to the new owner
 }
 
+/*public entry fun remove_royalty(
+    policy: &mut TransferPolicy<NFT>,
+    policy_cap: &mut TransferPolicyCap<NFT>,
+    _: &mut sui::package::Publisher,
+    _ctx: &mut TxContext,
+) {
+    royalty_rule::add<NFT>(policy, policy_cap, 0, 0); // Set royalty to 0 bps
+}*/
 
 public entry fun update_collection(
     collection: &mut Collection,
@@ -434,10 +475,11 @@ public entry fun update_collection(
     policy: &mut TransferPolicy<NFT>,
     policy_cap: &mut TransferPolicyCap<NFT>, //TODO: mut
     display: &mut display::Display<NFT>,
-    _: &mut sui::package::Publisher,
+    publisher: &mut sui::package::Publisher,
     _ctx: &mut TxContext,
 ) {
     assert!(collection.is_immutable == false, 0x2); // collection must be mutable to change
+    assert!(collection.package == *publisher.package(), 0x3); // only original publisher can update collection
 
     if (supply != 0 && supply < collection.minted_supply) {
         abort 0x1 // Cannot reduce supply below current minimum
@@ -531,7 +573,7 @@ public entry fun initialize_collection(
     ctx: &mut TxContext,
 ) {
     assert!(collection.initialized == false, 0x2); // Collection must not be initialized
-
+    assert!(collection.package == *publisher.package(), 0x3); // only original publisher can initialize collection
     // Define the Collection display object
     let mut display_object = display::new<NFT>(publisher, ctx);
     display::add<NFT>(&mut display_object, utf8(b"collection_name"), collection_name);
@@ -560,7 +602,6 @@ public entry fun initialize_collection(
     collection.next_token_id = starting_token_id; // Initialize next token ID
     collection.starting_token_id = starting_token_id; // Set starting token ID
     collection.fixed_metadata = fixed_metadata;
-    collection.package = std::string::from_ascii(*publisher.package());
     if (fixed_metadata) {
         collection.metadata_count = supply_amount;
 
@@ -610,7 +651,7 @@ fun init(otw: JQ721, ctx: &mut TxContext) {
         fixed_metadata: false, // Initialize fixed metadata to false
         next_token_id: 0, // Initialize next token ID to 0
         starting_token_id: 0, // Initialize starting token ID to 0
-        package: b"".to_string(),
+        package: *publisher.package(),
     };
 
     // Transfer ownerships
